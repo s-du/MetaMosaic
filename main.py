@@ -35,6 +35,9 @@ proc.new_dir(OUT_CC_DIR)
 MIN_RANSAC_FACTOR = 300  # (Total number of points / MIN_RANSAC_FACTOR) gives the minimum amount of points to define a
 RANSAC_DIST = 0.02  # maximum distance for a point to be considered belonging to a plane
 
+# Ortho
+PIXEL_SIZE = 0.003 # if 0, Orthomosaics will be created with the highest possible resolution
+
 # create empty log for storing the infos about created data
 log_txt = ''
 
@@ -53,11 +56,15 @@ if __name__ == "__main__":
     Model creation from input images + subsampled point cloud export
     °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
     """
+    # TODO Add YOLO part
     if do_agisoft_part1_rgb:
         # run method
-        agi.run_agisoft_rgb_only_part1(INPUT_IMG_DIR, OUT_AGISOFT_DIR)
+        computed_pixel_size = agi.run_agisoft_rgb_only_part1(INPUT_IMG_DIR, OUT_AGISOFT_DIR)
+        model_texture_res = computed_pixel_size
+
     elif do_agisoft_part1_th:
-        agi.run_agisoft_thermal_part1(INPUT_IMG_DIR, OUT_AGISOFT_DIR)
+        computed_pixel_size = agi.run_agisoft_thermal_part1(INPUT_IMG_DIR, OUT_AGISOFT_DIR)
+        model_texture_res = computed_pixel_size
 
     """
     °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
@@ -87,6 +94,10 @@ if __name__ == "__main__":
                    f'\t-center location: X:{center[0]:.2f}, Y:{center[1]:.2f}, Z:{center[2]:.2f} \n' \
                    f'\t-number of points: {n_points} points \n' \
                    f'\t-density: {density:.3f} m between points on average \n'
+                   
+        for bound_point in bound_points:
+            log_txt += f'corners: \n' \
+            f'{bound_point} \n' 
 
         # 2. RANSAC DETECTION __________________________________________________________________________________
         print('Launching RANSAC detection...')
@@ -105,7 +116,7 @@ if __name__ == "__main__":
                                              ransac_cloud_folder)
         log_txt += f'\n°°°Dataset: Ransac operations°°° \n' \
                    f'Properties: \n' \
-                   f'\t-number of planes detected: {n_planes} points \n' \
+                   f'\t-number of planes detected: {n_planes} planes \n' \
                    f'\t-location on HDD of Ransac planes as obj files: {ransac_obj_folder}\n' \
                    f'\t-location on HDD of Ransac planes as point cloud objects: {ransac_cloud_folder}\n' \
  \
@@ -126,6 +137,7 @@ if __name__ == "__main__":
     °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
     """
     if do_agisoft_part2_rgb or do_agisoft_part2_th:
+
         # create full plan list
         plane_list = proc.generate_list('obj', ransac_obj_folder, exclude='merged')
         # print all plane data
@@ -137,6 +149,21 @@ if __name__ == "__main__":
         # find vertical planes
         ver_planes = proc.filter_planes(plane_list, 'vertical', 5)
 
+        # get true normal from support points
+        normals_list = []
+        ver_plane_pc_list = []
+        for ver_pl in ver_planes:
+            _, file = os.path.split(ver_pl)
+            ver_pl_pc = os.path.join(ransac_cloud_folder, file[:-4] + '.ply')
+            ver_plane_pc_list.append(ver_pl_pc)
+
+        for plane_pc in ver_plane_pc_list:
+            pc_load = o3d.io.read_point_cloud(plane_pc)
+            normal = proc.get_average_normal(pc_load)
+            normals_list.append(normal)
+        print(normals_list)
+
+        """
         # get normals direction
         normals_list = []
         for plane in ver_planes:
@@ -145,13 +172,26 @@ if __name__ == "__main__":
             normals_list.append(normal)
             print(f'Plane:{plane}, Normal: {normal}, Vertical!')
         print(normals_list)
+        """
+
+        # remove duplicate normals
+        filtered_normals = proc.remove_duplicate_normals(normals_list)
+        print(filtered_normals)
+
+        # Start the log entry with a header
+        log_txt += '\n°°° Dataset: Plane normals °°°\n'
+
+        # Iterate over the filtered normals and append each one to the log
+        for normal in filtered_normals:
+            log_txt += f'Normal: {normal}\n'  # Each normal is added on a new line
+
 
         # run agisoft for ortho creation
-        psx_path = os.path.join(OUT_AGISOFT_DIR, 'agisoft.psx')
+        psx_path = os.path.join(OUT_AGISOFT_DIR, 'agisoft_test2.psx')
         if do_agisoft_part2_rgb:
-            agi.run_agisoft_rgb_only_part2(psx_path, normals_list)
+            orthos_data = agi.run_agisoft_rgb_only_part2(psx_path, filtered_normals, OUT_CC_DIR, pixel_size=PIXEL_SIZE)
         elif do_agisoft_part2_th:
-            agi.run_agisoft_thermal_part2(psx_path, normals_list)
+            orthos_data = agi.run_agisoft_thermal_part2(psx_path, filtered_normals, OUT_CC_DIR, pixel_size=PIXEL_SIZE)
 
     """
     °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°

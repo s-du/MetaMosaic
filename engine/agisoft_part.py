@@ -19,8 +19,9 @@ else:
         def install(package):
             subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
-        metashape_module = res.find('other/Metashape-2.0.1-cp37.cp38.cp39.cp310.cp311-none-win_amd64.whl')
+        metashape_module = res.find('other/Metashape-2.1.2-cp37.cp38.cp39.cp310.cp311-none-win_amd64.whl')
         install(metashape_module)
+
 
     # check if module is installed
     required = {'metashape'}
@@ -30,12 +31,11 @@ else:
     if missing:
         print(r"Ok let's intall Agisoft!")
         install_agisoft_module()
-    
 
 import Metashape
 
 # general parameters
-DOWN_SCALE = 2 # downscale factor for image alignment
+DOWN_SCALE = 2  # downscale factor for image alignment
 
 # paths
 basepath = os.path.dirname(__file__)
@@ -43,12 +43,17 @@ basepath = os.path.dirname(__file__)
 """
 SIMPLE METHODS_________________________________________________________________________________________________________
 """
+
+
 def batch_process_pictures(img_folder, backup_folder, processing_type):
     for img in os.listdir(img_folder):
         img_path = os.path.join(img_folder, img)
 
+        # TODO complete
 
-def run_agisoft_rgb_only_part1(img_folder, output_folder, quality = 'low', opt_limit_poly=0, nb_text = 4, text_size = 8192, start_with_psx = False):
+
+def run_agisoft_rgb_only_part1(img_folder, output_folder, quality='low', opt_limit_poly=0, pixel_size=0,
+                               start_with_psx=False):
     def pre_cleaning(chk):
         '''
         A function to do the precleaning after bundle ajustment
@@ -128,12 +133,16 @@ def run_agisoft_rgb_only_part1(img_folder, output_folder, quality = 'low', opt_l
             chk.decimateModel(face_count=opt_limit_poly)
         doc.save(path=psx_path)
 
+        # compute optimal pixel size
+        if pixel_size == 0:
+            pixel_size = chk.model.meta['BuildModel/resolution']
+
         # build uv and texture
         print('building uv!')
-        chk.buildUV(mapping_mode=Metashape.GenericMapping, page_count=nb_text, texture_size=text_size)
+        chk.buildUV(mapping_mode=Metashape.GenericMapping, pixel_size=pixel_size)
 
         # build rgb texture
-        print(f'building texture, {nb_text} textures of resolution {text_size}!')
+        print(f'building texture')
         chk.buildTexture()
 
         doc.save(path=psx_path)
@@ -161,12 +170,14 @@ def run_agisoft_rgb_only_part1(img_folder, output_folder, quality = 'low', opt_l
         chk.buildOrthomosaic(surface_data=Metashape.ModelData, resolution=0.02)
         chk.exportRaster(ortho_path)
 
+        return pixel_size
+
     else:
         pass
 
 
-
-def run_agisoft_thermal_part1(img_folder,output_folder, drone_name, quality = 'low', opt_limit_poly=0, nb_text = 4, text_size = 8192, start_with_psx = False):
+def run_agisoft_thermal_part1(img_folder, output_folder, drone_name, quality='low', opt_limit_poly=0, pixel_size=0,
+                              start_with_psx=False):
     def pre_cleaning(chk):
         '''
         A function to do the precleaning after bundle ajustment
@@ -195,15 +206,15 @@ def run_agisoft_thermal_part1(img_folder,output_folder, drone_name, quality = 'l
     # create list of images
     ir_folder = os.path.join(img_folder, 'thermal')
     rgb_folder = os.path.join(img_folder, 'rgb')
-    rgb_list = [os.path.abspath(os.path.join(rgb_folder, filename)) for filename in os.listdir(rgb_folder) if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
-    ir_list = [os.path.abspath(os.path.join(rgb_folder, filename)) for filename in os.listdir(ir_folder) if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
+    rgb_list = [os.path.abspath(os.path.join(rgb_folder, filename)) for filename in os.listdir(rgb_folder) if
+                filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
+    ir_list = [os.path.abspath(os.path.join(rgb_folder, filename)) for filename in os.listdir(ir_folder) if
+               filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
 
     # check drone model
     # drone model specific data
     if drone_name == 'MAVIC2-ENTERPRISE-ADVANCED':
         calib_file = res.find('other/camera_calib_m2t.xml')
-    elif drone_name == 'M3T':
-        calib_file = res.find('other/camera_calib_m3t.xml')
 
     # create agisoft document
     if not start_with_psx:
@@ -288,12 +299,16 @@ def run_agisoft_thermal_part1(img_folder,output_folder, drone_name, quality = 'l
         if opt_limit_poly > 0:
             chk.decimateModel(face_count=opt_limit_poly)
 
+        # compute optimal pixel size
+        if pixel_size == 0:
+            pixel_size = chk.model.meta['BuildModel/resolution']
+
         # uv
         print('building uv!')
-        chk.buildUV(mapping_mode=Metashape.GenericMapping, page_count=nb_text, texture_size=text_size)
+        chk.buildUV(mapping_mode=Metashape.GenericMapping, pixel_size=pixel_size)
 
         # build rgb texture
-        print(f'building texture, {nb_text} textures of resolution {text_size}!')
+        print(f'building texture, pixel size {pixel_size}!')
         chk.buildTexture()
 
         # save model
@@ -332,16 +347,16 @@ def run_agisoft_thermal_part1(img_folder,output_folder, drone_name, quality = 'l
         # build normal map
         # chk.buildTexture(texture_type=Metashape.Model.NormalMap)
 
+        return pixel_size
+
     else:
         pass
 
 
-def run_agisoft_rgb_only_part2(psx_path, normal_list, output_folder):
+def run_agisoft_rgb_only_part2(psx_path, normal_list, output_folder, pixel_size=0):
     # Load the Metashape project
     doc = Metashape.Document()
     doc.open(psx_path)
-
-    # change to local coordinate system
     chunk = doc.chunk
     chunk.resetRegion()
     """
@@ -350,11 +365,28 @@ def run_agisoft_rgb_only_part2(psx_path, normal_list, output_folder):
     chunk.crs = crs
     """
 
+    # render top view
+    proj = Metashape.OrthoProjection()
+    proj.crs = chunk.world_crs
+    proj.type = Metashape.OrthoProjection.Type.Planar
+    T = chunk.transform.matrix
+    lf = chunk.crs.localframe(T.mulp(Metashape.Vector([0, 0, 0])))
+
+    proj.matrix = Metashape.Matrix.Rotation(lf.rotation())
+    ortho_path = os.path.join(output_folder, f'ortho_top.png')
+    chunk.buildOrthomosaic(surface_data=Metashape.DataSource.ModelData,
+                           blending_mode=Metashape.BlendingMode.MosaicBlending,
+                           fill_holes=True,
+                           resolution=pixel_size,
+                           projection=proj)
+
+    chunk.exportRaster(ortho_path)
+
     for i, normal in enumerate(normal_list):
         ortho_path = os.path.join(output_folder, f'ortho{i}.png')
         print(f'NORMAL:{normal}')
         good_mat = get_r_mat(normal)
-        Rot = Metashape.Matrix.Rotation(Metashape.Matrix(good_mat)) # correspond to front XZ view
+        Rot = Metashape.Matrix.Rotation(Metashape.Matrix(good_mat))  # correspond to front XZ view
 
         T = chunk.transform.matrix
         lf = chunk.crs.localframe(T.mulp(Metashape.Vector([0, 0, 0])))
@@ -367,33 +399,66 @@ def run_agisoft_rgb_only_part2(psx_path, normal_list, output_folder):
         # Build the orthomosaic using the custom projection
         chunk.buildOrthomosaic(surface_data=Metashape.DataSource.ModelData,
                                blending_mode=Metashape.BlendingMode.MosaicBlending,
-                               refine_seamlines=True,
                                fill_holes=True,
+                               resolution=pixel_size,
                                projection=proj)
 
         chunk.exportRaster(ortho_path)
 
-def run_agisoft_thermal_part2(psx_path, normal_list, output_folder):
+    ortho_data = ''
+    return ortho_data
+
+
+def run_agisoft_thermal_part2(psx_path, normal_list, output_folder, do_top=True, pixel_size=0):
     # Load the Metashape project
     doc = Metashape.Document()
     doc.open(psx_path)
-
-    # change to local coordinate system
     chunk = doc.chunk
-    chunk.resetRegion()
-    """
-    crs = Metashape.CoordinateSystem(
-        'LOCAL_CS["Local Coordinates",LOCAL_DATUM["Local Datum",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]]]')
-    chunk.crs = crs
-    """
 
+    # check if rgb pictures are master
+    # change layer index
+    chunk.sensors[0].layer_index = 0
+    chunk.sensors[0].makeMaster()
+
+    # render top view
+    if do_top:
+        proj = Metashape.OrthoProjection()
+        proj.crs = chunk.world_crs
+        proj.type = Metashape.OrthoProjection.Type.Planar
+        T = chunk.transform.matrix
+        lf = chunk.crs.localframe(T.mulp(Metashape.Vector([0, 0, 0])))
+
+        proj.matrix =  Metashape.Matrix.Rotation(lf.rotation())
+
+        ortho_path = os.path.join(output_folder, f'ortho_top.png')
+        chunk.buildOrthomosaic(surface_data=Metashape.DataSource.ModelData,
+                               blending_mode=Metashape.BlendingMode.MosaicBlending,
+                               fill_holes=True,
+                               resolution=pixel_size,
+                               projection=proj)
+
+        chunk.exportRaster(ortho_path)
+
+        # change layer index
+        chunk.sensors[0].layer_index = 1
+        chunk.sensors[1].makeMaster()
+
+        # render top view thermal
+        ortho_path = os.path.join(output_folder, f'ortho_top_th.png')
+        chunk.buildOrthomosaic(surface_data=Metashape.DataSource.ModelData,
+                               blending_mode=Metashape.BlendingMode.MosaicBlending,
+                               fill_holes=True,
+                               resolution=pixel_size*10,
+                               projection=proj)
+
+        chunk.exportRaster(ortho_path)
 
     for i, normal in enumerate(normal_list):
         ortho_path = os.path.join(output_folder, f'ortho{i}.png')
         ortho_th_path = os.path.join(output_folder, f'ortho_th{i}.png')
         print(f'NORMAL:{normal}')
         good_mat = get_r_mat(normal)
-        Rot = Metashape.Matrix.Rotation(Metashape.Matrix(good_mat)) # correspond to front XZ view
+        Rot = Metashape.Matrix.Rotation(Metashape.Matrix(good_mat))  # correspond to front XZ view
 
         T = chunk.transform.matrix
         lf = chunk.crs.localframe(T.mulp(Metashape.Vector([0, 0, 0])))
@@ -411,8 +476,8 @@ def run_agisoft_thermal_part2(psx_path, normal_list, output_folder):
         # Build the orthomosaic using the custom projection
         chunk.buildOrthomosaic(surface_data=Metashape.DataSource.ModelData,
                                blending_mode=Metashape.BlendingMode.MosaicBlending,
-                               refine_seamlines=True,
                                fill_holes=True,
+                               resolution=pixel_size,
                                projection=proj)
 
         chunk.exportRaster(ortho_path)
@@ -423,11 +488,17 @@ def run_agisoft_thermal_part2(psx_path, normal_list, output_folder):
 
         chunk.buildOrthomosaic(surface_data=Metashape.DataSource.ModelData,
                                blending_mode=Metashape.BlendingMode.MosaicBlending,
-                               refine_seamlines=True,
                                fill_holes=True,
+                               resolution=pixel_size*10,
                                projection=proj)
 
         chunk.exportRaster(ortho_th_path)
+
+        ortho_data = ''
+
+    doc.save(psx_path)
+    return ortho_data
+
 
 def get_r_mat(orientation_vector):
     print(f'Analysing vector {orientation_vector}')
@@ -453,6 +524,7 @@ def get_r_mat(orientation_vector):
     print(f'_____________________________{R_final}')
 
     return R_final
+
 
 def run_agisoft_recolor(yolo_img_dir):
     pass

@@ -78,6 +78,26 @@ def find_substring_delete(substring, folder):
 
 
 # OPEN3D FUNCTIONS______________________________________________________________________________________________________
+def get_average_normal(pcd):
+    # Check if the point cloud has normals
+    if not pcd.has_normals():
+        print("The point cloud does not have normals.")
+        exit()
+
+    # Access the normals as a numpy array
+    normals = np.asarray(pcd.normals)
+
+    # Compute the average normal vector
+    average_normal = np.mean(normals, axis=0)
+
+    # Normalize the average normal (optional, but often useful)
+    average_normal /= np.linalg.norm(average_normal)
+
+    # Print the result
+    print("Average Normal Vector: ", average_normal)
+
+    return average_normal
+
 def create_box_limit(pcd, output_path):
     bound = pcd.get_oriented_bounding_box()
     points_bb = bound.get_box_points()
@@ -407,7 +427,32 @@ def preproc_align_cloud(cloud_path, ransac_obj_folder, ransac_cloud_folder, excl
     return r
 
 
-# TRANSFORM COLORS FUNCTIONS____________________________________________________________________________________________
+# NORMAL FUNCTIONS____________________________________________________________________________________________
+# Function to normalize a vector
+def normalize(vector):
+    return vector / np.linalg.norm(vector)
+
+
+# Function to check if two normals are close
+def are_normals_close(normal1, normal2, threshold=0.996):  # Threshold for dot product similarity (cosine similarity)
+    normal1_normalized = normalize(np.array(normal1))
+    normal2_normalized = normalize(np.array(normal2))
+
+    dot_product = np.dot(normal1_normalized, normal2_normalized)
+
+    # If the dot product is close to 1, the vectors are almost in the same direction
+    return dot_product > threshold
+
+
+# Remove duplicate normals based on closeness
+def remove_duplicate_normals(normals_list, threshold=0.996):
+    unique_normals = []
+
+    for normal in normals_list:
+        if not any(are_normals_close(normal, unique_normal, threshold) for unique_normal in unique_normals):
+            unique_normals.append(normal)
+
+    return unique_normals
 
 
 # 2D RENDERING FUNCTIONS________________________________________________________________________________________________
