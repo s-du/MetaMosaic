@@ -22,6 +22,10 @@ PROCESSED_DATA_DIR = os.path.join(INPUT_IMG_DIR, 'MetaMosaic')
 OUT_ORTHO_DIR = os.path.join(PROCESSED_DATA_DIR, 'orthomosaics')  # Output images directory
 OUT_AGISOFT_DIR = os.path.join(PROCESSED_DATA_DIR, 'agisoft_outputs')
 OUT_CC_DIR = os.path.join(PROCESSED_DATA_DIR, 'cloudcompare_outputs')
+# create RANSAC directories
+RANSAC_CLOUD_DIR = os.path.join(OUT_CC_DIR, 'RANSAC_pc')
+RANSAC_MESH_DIR = os.path.join(OUT_CC_DIR, 'RANSAC_meshes')
+
 LOG_PATH = os.path.join(PROCESSED_DATA_DIR, 'log.txt')
 AGISOFT_PC_PATH = os.path.join(OUT_AGISOFT_DIR, 'point_cloud.ply')
 
@@ -29,6 +33,8 @@ proc.new_dir(PROCESSED_DATA_DIR)
 proc.new_dir(OUT_ORTHO_DIR)
 proc.new_dir(OUT_AGISOFT_DIR)
 proc.new_dir(OUT_CC_DIR)
+proc.new_dir(RANSAC_CLOUD_DIR)
+proc.new_dir(RANSAC_MESH_DIR)
 
 # PARAMETERS
 # Ransac detection
@@ -45,18 +51,29 @@ if __name__ == "__main__":
     # user options
     do_agisoft_part1_rgb = False
     do_agisoft_part1_th = False
-    do_cc_part1 = True
+    do_cc_part1 = False
     do_agisoft_part2_rgb = False
-    do_agisoft_part2_th = True
+    do_agisoft_part2_th = False
+    do_agisoft_part2_th_only = True
     do_cc_part2 = False
 
     """
     °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-    *******************************  AGISOFT (PART1)  ****************************************
+    *******************************  IMAGE PROCESSING (STAGE 1)  ****************************************
+    Processing images for segmentation
+    °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
+    """
+    rgb_folder = os.path.join(INPUT_IMG_DIR, 'rgb')
+
+
+
+    """
+    °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
+    *******************************  3D RECONSTRUCTION - AGISOFT (STAGE 2)  ******************
     Model creation from input images + subsampled point cloud export
     °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
     """
-    # TODO Add YOLO part
+
     if do_agisoft_part1_rgb:
         # run method
         computed_pixel_size = agi.run_agisoft_rgb_only_part1(INPUT_IMG_DIR, OUT_AGISOFT_DIR)
@@ -68,7 +85,7 @@ if __name__ == "__main__":
 
     """
     °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-    *******************************  CLOUDCOMPARE PROCESSING (PART1) *************************
+    *******************************  PLANE ANALYSIS - CloudCompare (STAGE 3a) *****************
     RANSAC Based on the point cloud extracted from Agisoft
     °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
     """
@@ -102,23 +119,16 @@ if __name__ == "__main__":
         # 2. RANSAC DETECTION __________________________________________________________________________________
         print('Launching RANSAC detection...')
 
-        # create RANSAC directories
-        ransac_cloud_folder = os.path.join(OUT_CC_DIR, 'RANSAC_pc')
-        proc.new_dir(ransac_cloud_folder)
-
-        ransac_obj_folder = os.path.join(OUT_CC_DIR, 'RANSAC_meshes')
-        proc.new_dir(ransac_obj_folder)
-
         # fixing RANSAC Parameters
         min_points = n_points / MIN_RANSAC_FACTOR
 
-        n_planes = proc.preproc_ransac_short(AGISOFT_PC_PATH, min_points, RANSAC_DIST, ransac_obj_folder,
-                                             ransac_cloud_folder)
+        n_planes = proc.preproc_ransac_short(AGISOFT_PC_PATH, min_points, RANSAC_DIST, RANSAC_MESH_DIR,
+                                             RANSAC_CLOUD_DIR)
         log_txt += f'\n°°°Dataset: Ransac operations°°° \n' \
                    f'Properties: \n' \
                    f'\t-number of planes detected: {n_planes} planes \n' \
-                   f'\t-location on HDD of Ransac planes as obj files: {ransac_obj_folder}\n' \
-                   f'\t-location on HDD of Ransac planes as point cloud objects: {ransac_cloud_folder}\n' \
+                   f'\t-location on HDD of Ransac planes as obj files: {RANSAC_MESH_DIR}\n' \
+                   f'\t-location on HDD of Ransac planes as point cloud objects: {RANSAC_CLOUD_DIR}\n' \
  \
             # 3. ORIENT THE POINT CLOUD PERPENDICULAR TO AXIS_______________________________________________________
         """
@@ -132,14 +142,14 @@ if __name__ == "__main__":
 
     """
     °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-    *******************************  AGISOFT PROCESSING (PART2) ******************************
+    *******************************  ORTHO CREATION - AGISOFT (STAGE 3b) *********************
     CREATE ORTHOS
     °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
     """
-    if do_agisoft_part2_rgb or do_agisoft_part2_th:
+    if do_agisoft_part2_rgb or do_agisoft_part2_th or do_agisoft_part2_th_only:
 
         # create full plan list
-        plane_list = proc.generate_list('obj', ransac_obj_folder, exclude='merged')
+        plane_list = proc.generate_list('obj', RANSAC_MESH_DIR, exclude='merged')
         # print all plane data
         for plane in plane_list:
             plane_data = proc.plane_data_light(plane)
@@ -154,7 +164,7 @@ if __name__ == "__main__":
         ver_plane_pc_list = []
         for ver_pl in ver_planes:
             _, file = os.path.split(ver_pl)
-            ver_pl_pc = os.path.join(ransac_cloud_folder, file[:-4] + '.ply')
+            ver_pl_pc = os.path.join(RANSAC_CLOUD_DIR, file[:-4] + '.ply')
             ver_plane_pc_list.append(ver_pl_pc)
 
         for plane_pc in ver_plane_pc_list:
@@ -192,10 +202,12 @@ if __name__ == "__main__":
             orthos_data = agi.run_agisoft_rgb_only_part2(psx_path, filtered_normals, OUT_CC_DIR, pixel_size=PIXEL_SIZE)
         elif do_agisoft_part2_th:
             orthos_data = agi.run_agisoft_thermal_part2(psx_path, filtered_normals, OUT_CC_DIR, pixel_size=PIXEL_SIZE)
+        elif do_agisoft_part2_th_only:
+            orthos_data = agi.run_agisoft_thermal_part2(psx_path, filtered_normals, OUT_CC_DIR, pixel_size=PIXEL_SIZE, th_only=True)
 
     """
     °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
-    *******************************  CLOUDCOMPARE PROCESSING (PART2)  ************************
+    *******************************  ADVANCED PROCESSING (STAGE 5)  ************************
     °°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°°
     """
     if do_cc_part2:

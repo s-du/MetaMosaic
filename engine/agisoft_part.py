@@ -409,7 +409,7 @@ def run_agisoft_rgb_only_part2(psx_path, normal_list, output_folder, pixel_size=
     return ortho_data
 
 
-def run_agisoft_thermal_part2(psx_path, normal_list, output_folder, do_top=True, pixel_size=0):
+def run_agisoft_thermal_part2(psx_path, normal_list, output_folder, do_top=True, pixel_size=0, th_only=False):
     # Load the Metashape project
     doc = Metashape.Document()
     doc.open(psx_path)
@@ -429,15 +429,15 @@ def run_agisoft_thermal_part2(psx_path, normal_list, output_folder, do_top=True,
         lf = chunk.crs.localframe(T.mulp(Metashape.Vector([0, 0, 0])))
 
         proj.matrix =  Metashape.Matrix.Rotation(lf.rotation())
+        if not th_only:
+            ortho_path = os.path.join(output_folder, f'ortho_top.png')
+            chunk.buildOrthomosaic(surface_data=Metashape.DataSource.ModelData,
+                                   blending_mode=Metashape.BlendingMode.MosaicBlending,
+                                   fill_holes=True,
+                                   resolution=pixel_size,
+                                   projection=proj)
 
-        ortho_path = os.path.join(output_folder, f'ortho_top.png')
-        chunk.buildOrthomosaic(surface_data=Metashape.DataSource.ModelData,
-                               blending_mode=Metashape.BlendingMode.MosaicBlending,
-                               fill_holes=True,
-                               resolution=pixel_size,
-                               projection=proj)
-
-        chunk.exportRaster(ortho_path)
+            chunk.exportRaster(ortho_path)
 
         # change layer index
         chunk.sensors[0].layer_index = 1
@@ -446,8 +446,9 @@ def run_agisoft_thermal_part2(psx_path, normal_list, output_folder, do_top=True,
         # render top view thermal
         ortho_path = os.path.join(output_folder, f'ortho_top_th.png')
         chunk.buildOrthomosaic(surface_data=Metashape.DataSource.ModelData,
-                               blending_mode=Metashape.BlendingMode.MosaicBlending,
+                               blending_mode=Metashape.BlendingMode.AverageBlending,
                                fill_holes=True,
+                               ghosting_filter=True,
                                resolution=pixel_size*10,
                                projection=proj)
 
@@ -470,25 +471,27 @@ def run_agisoft_thermal_part2(psx_path, normal_list, output_folder, do_top=True,
 
         # check if rgb pictures are master
         # change layer index
-        chunk.sensors[0].layer_index = 0
-        chunk.sensors[0].makeMaster()
+        if not th_only:
+            chunk.sensors[0].layer_index = 0
+            chunk.sensors[0].makeMaster()
 
-        # Build the orthomosaic using the custom projection
-        chunk.buildOrthomosaic(surface_data=Metashape.DataSource.ModelData,
-                               blending_mode=Metashape.BlendingMode.MosaicBlending,
-                               fill_holes=True,
-                               resolution=pixel_size,
-                               projection=proj)
+            # Build the orthomosaic using the custom projection
+            chunk.buildOrthomosaic(surface_data=Metashape.DataSource.ModelData,
+                                   blending_mode=Metashape.BlendingMode.MosaicBlending,
+                                   fill_holes=True,
+                                   resolution=pixel_size,
+                                   projection=proj)
 
-        chunk.exportRaster(ortho_path)
+            chunk.exportRaster(ortho_path)
 
         # change layer index
         chunk.sensors[0].layer_index = 1
         chunk.sensors[1].makeMaster()
 
         chunk.buildOrthomosaic(surface_data=Metashape.DataSource.ModelData,
-                               blending_mode=Metashape.BlendingMode.MosaicBlending,
+                               blending_mode=Metashape.BlendingMode.AverageBlending,
                                fill_holes=True,
+                               ghosting_filter=True,
                                resolution=pixel_size*10,
                                projection=proj)
 
