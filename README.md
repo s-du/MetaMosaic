@@ -20,6 +20,7 @@ image/
     ├── color_image2.jpg
     └── color_image3.jpg
 ```
+Thermal image can be processed with any software, but should not be corrected for deformation! See https://github.com/s-du/Thermogram for an easy open-source tool for DJI image processing.
 
 **The project is still in pre-release, so do not hesitate to send your recommendations or the bugs you encountered!**
 
@@ -40,6 +41,15 @@ The photogrammetric reconstruction is performed with Agisoft Metashape API (v.2.
     Example of a mesh produced with Agisoft API
 </p>
 
+Once the high-resolution mesh is created, the next step is to determine the orientation of all façades. a so-called 'smart' orthomosaic generation. This is particularly beneficial for complex buildings, where façades may not be orthogonal to one another.
+All geometric analyses are performed automatically using the CloudCompare command-line interface. First, a point cloud is sampled from the 3D mesh, with a uniform point spacing of 0.05 meters. This low-resolution point cloud serves as the basis for planar detection using the RANSAC algorithm, which generates a list of all detected planar surfaces. Each detected plane is associated with corresponding support points. By analyzing the normal orientation of these points, vertical planes—representing the building façades—can be filtered easily. The point normal analysis also determines the correct projection direction for generating façade orthomosaics, avoiding back-projection. After filtering out duplicate vectors for building façades facing the same direction, the process outputs a refined list of vectors that can be used for generating optimal façade projections. The next step involves importing this vector list into Agisoft Metashape and generating all orthomosaics in an automated loop. For each direction, both RGB and thermal ortho-image are generated. A log file (.txt) is created to record the normal vector for each image file along with the image resolution (in pixels per meter).
+
+<p align="center">
+    <a href=""><img src="resources\img\ransac.png" alt="diagram" border="0";"></a>
+
+    Results of the plane detection phase, for determining the optimal projection orientation of orthomosaics: (a) output of the RANSAC algorithm with all detected planes; (b) plane filtering and final projection orientations; (c) orthomosaics generated automatically in Agisoft Metashape
+</p>
+
 A key result of this script is the generation of color and thermal orthomosaic pairs, as illustrated below. For each façade within the zone of interest, diagnostic experts gain access to a rich dataset, enabling the visual detection of structural pathologies and the identification of potential abnormal heat losses.
 
 <p align="center">
@@ -51,8 +61,6 @@ A key result of this script is the generation of color and thermal orthomosaic p
 - `tools/`: Contains essential image processing logic for the application.
 - `ui/`: The user interface files for the application.
 - `main.py`: The main Python script for running the application.
-- `dialogs.py`: Handles the dialog logic.
-- `widgets.py`: Defines Pyside6 widgets and UI components.
 
 ## Topics
 - Drones
