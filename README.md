@@ -5,6 +5,21 @@
 
 ## Overview
 We propose a script to automate the orthomosaïc generation from drone images (Infrared IR and colour RGB). This workflow leverages the capabilities of multiple libraries, such as Agidoft Metashape, CloudCompare and YOLO, and is compatible with DJI Drones. At the moment, the app includes support for Mavic 2 Enterprise and Mavic 3 Thermal series.
+As an input, the user must provide an image folder with organized as:
+
+```
+image/
+│
+├── Th/    # Thermal images 
+│   ├── thermal_image1.jpg
+│   ├── thermal_image2.jpg
+│   └── thermal_image3.jpg
+│
+└── Rgb/   # Color images
+    ├── color_image1.jpg
+    ├── color_image2.jpg
+    └── color_image3.jpg
+```
 
 **The project is still in pre-release, so do not hesitate to send your recommendations or the bugs you encountered!**
 
@@ -15,6 +30,14 @@ The developed data workflow is designed to extract the maximum amount of informa
     <a href=""><img src="resources\img\diagram.png" alt="diagram" border="0";"></a>
     
     Data processing workflow, divided into 4 main stages
+</p>
+
+The photogrammetric reconstruction is performed with Agisoft Metashape API (v.2.1.2). The first step: import all images as a multi-camera system. This automatically recognises each RGB/IR image group as being co-registered in space, which greatly facilitates the alignment procedure. In the software, a “master” sensor must be defined that will serve as a support for all “secondary” sensors in the multi-camera system. Here, we first define the RGB images as master to enter the alignment step in Agisoft Metashape. Once the RGB cameras are aligned and the extrinsic camera parameters are estimated, a high-resolution mesh is created from depth maps computation. Thereafter, the IR images are defined as the master sensor to enter the second stage of the 3D workflow in Agisoft Metashape. This will allow projecting the thermal information as a texture onto the detailed mesh. The intrinsic parameters of the IR camera are also imported at this stage. All reconstruction steps are performed automatically using the Python API of the photogrammetry software. 
+
+<p align="center">
+    <a href=""><img src="resources\img\mesh.png" alt="diagram" border="0";"></a>
+
+    Example of a mesh produced with Agisoft API
 </p>
 
 A key result of this script is the generation of color and thermal orthomosaic pairs, as illustrated below. For each façade within the zone of interest, diagnostic experts gain access to a rich dataset, enabling the visual detection of structural pathologies and the identification of potential abnormal heat losses.
