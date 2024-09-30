@@ -104,3 +104,15 @@ Contributions are welcome! If you find any bugs, have suggestions for new featur
 3. Make the necessary changes and commit them.
 4. Push your changes to your fork.
 5. Submit a pull request describing your changes.
+6. 
+
+## Citing
+
+```
+@software{MetaMosaic,
+  author = {Dubois, Samuel and Vandenabeele, Louis},
+  title = {MetaMosaic: smart processing of drone data for building diagnostics},
+  year = {2024},
+  url = {https://github.com/s-du/MetaMosaic}
+}
+```
