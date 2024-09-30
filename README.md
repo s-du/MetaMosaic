@@ -58,8 +58,8 @@ A key result of this script is the generation of color and thermal orthomosaic p
 
 ## Files and Structure
 - `resources/`: Contains essential resources for the application.
-- `tools/`: Contains essential image processing logic for the application.
-- `ui/`: The user interface files for the application.
+- `engine/`: Contains essential data processing logic for the application.
+- `ui/`: The user interface files for the application (Coming soon)
 - `main.py`: The main Python script for running the application.
 
 ## Topics
